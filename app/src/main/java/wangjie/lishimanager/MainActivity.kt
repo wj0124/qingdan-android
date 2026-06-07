@@ -48,10 +48,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -64,6 +66,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -72,6 +75,8 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -84,8 +89,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -99,6 +104,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -108,9 +115,14 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -221,9 +233,8 @@ class MainActivity : AppCompatActivity() {
     companion object {
         private const val REQUEST_WRITE_IMAGES = 301
 
-        private val COLOR_PAGE = AndroidColor.rgb(255, 251, 254)
-        private val COLOR_SURFACE = AndroidColor.rgb(255, 251, 254)
-        private val COLOR_ACCENT = AndroidColor.rgb(103, 80, 164)
+        private val COLOR_PAGE = AndroidColor.rgb(247, 247, 248)
+        private val COLOR_SURFACE = AndroidColor.WHITE
 
         private val COLOR_RECEIPT_PAGE = AndroidColor.rgb(238, 239, 245)
         private val COLOR_RECEIPT_CARD = AndroidColor.WHITE
@@ -1053,20 +1064,29 @@ private fun LiShiManagerApp(state: LiShiUiState, actions: LiShiActions) {
 
 @Composable
 private fun LiShiManagerTheme(content: @Composable () -> Unit) {
-    val context = LocalContext.current
-    val colorScheme = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        dynamicLightColorScheme(context)
-    } else {
-        lightColorScheme(
-            primary = Color(0xFF6750A4),
-            secondary = Color(0xFF625B71),
-            surface = Color(0xFFFFFBFE),
-            background = Color(0xFFFFFBFE),
-            error = Color(0xFFB3261E)
-        )
-    }
     MaterialTheme(
-        colorScheme = colorScheme,
+        colorScheme = lightColorScheme(
+            primary = Color(0xFF202123),
+            onPrimary = Color.White,
+            primaryContainer = Color(0xFFE5E5E5),
+            onPrimaryContainer = Color(0xFF202123),
+            secondary = Color(0xFF565869),
+            onSecondary = Color.White,
+            secondaryContainer = Color(0xFFECECF1),
+            onSecondaryContainer = Color(0xFF202123),
+            tertiary = Color(0xFF6E6E80),
+            onTertiary = Color.White,
+            background = Color(0xFFF7F7F8),
+            onBackground = Color(0xFF202123),
+            surface = Color.White,
+            onSurface = Color(0xFF202123),
+            surfaceVariant = Color(0xFFECECF1),
+            onSurfaceVariant = Color(0xFF565869),
+            outline = Color(0xFFD9D9E3),
+            outlineVariant = Color(0xFFECECF1),
+            error = Color(0xFF202123),
+            onError = Color.White
+        ),
         content = content
     )
 }
@@ -1230,16 +1250,19 @@ private fun MainToolbarActions(page: Int, state: LiShiUiState, actions: LiShiAct
             onClick = { actions.showDialog(LiShiDialog.ResetAll) }
         )
     } else {
+        val hasSummaryData = state.selectedItems.isNotEmpty()
         ToolbarIconButton(
             iconRes = R.drawable.ic_save_alt_24,
             label = "保存",
             contentDescription = "保存到相册",
+            enabled = hasSummaryData,
             onClick = actions.saveReceipt
         )
         ToolbarIconButton(
             iconRes = R.drawable.ic_content_copy_24,
             label = "复制",
             contentDescription = "复制文本",
+            enabled = hasSummaryData,
             onClick = actions.copySummary
         )
     }
@@ -1251,8 +1274,7 @@ private fun ToolbarIconButton(
     label: String,
     contentDescription: String,
     enabled: Boolean = true,
-    onClick: () -> Unit
-) {
+    onClick: () -> Unit) {
     val color = if (enabled) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
     Column(
         modifier = Modifier.width(56.dp),
@@ -1275,14 +1297,29 @@ private fun ToolbarIconButton(
             text = label,
             color = color,
             fontSize = 10.sp,
+            lineHeight = 10.sp,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            style = TextStyle(
+                platformStyle = PlatformTextStyle(
+                    includeFontPadding = false
+                )
+            )
         )
     }
 }
 
 @Composable
 private fun CountPage(state: LiShiUiState, actions: LiShiActions, padding: PaddingValues) {
+    val focusManager = LocalFocusManager.current
+    val density = LocalDensity.current
+    val imeBottom = WindowInsets.ime.getBottom(density)
+
+    LaunchedEffect(imeBottom) {
+        if (imeBottom == 0) {
+            focusManager.clearFocus()
+        }
+    }
+
     if (state.items.isEmpty()) {
         EmptyState(
             title = "还没有物品",
@@ -1302,69 +1339,82 @@ private fun CountPage(state: LiShiUiState, actions: LiShiActions, padding: Paddi
             .fillMaxSize()
             .padding(padding)
             .background(CountPageColor),
-        contentPadding = PaddingValues(vertical = 8.dp)
+        contentPadding = PaddingValues(vertical = 4.dp)
     ) {
         itemsIndexed(state.items, key = { _, item -> item.id }) { _, item ->
-            CountItemRow(item, actions)
+            CountItemRow(item, actions, focusManager::clearFocus)
+            HorizontalDivider()
         }
     }
 }
 
 @Composable
-private fun CountItemRow(item: Item, actions: LiShiActions) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 4.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(16.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
+private fun CountItemRow(item: Item, actions: LiShiActions, clearFocus: () -> Unit) {
+    ListItem(
+        headlineContent = {
             Text(
                 text = item.name,
-                modifier = Modifier.weight(1f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                fontSize = 22.sp,
                 fontWeight = if (item.quantity > 0) FontWeight.Bold else FontWeight.Normal
             )
-            OutlinedIconButton(
-                onClick = { actions.decrementQuantity(item.id) },
-                enabled = item.quantity > 0,
-                modifier = Modifier.size(40.dp)
+        },
+        trailingContent = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_remove_24),
-                    contentDescription = "减少数量"
+                OutlinedIconButton(
+                    onClick = { actions.decrementQuantity(item.id) },
+                    enabled = item.quantity > 0,
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_remove_24),
+                        contentDescription = "减少数量"
+                    )
+                }
+                OutlinedTextField(
+                    value = item.quantity.toString(),
+                    onValueChange = { raw ->
+                        actions.setQuantity(item.id, raw.filter { it.isDigit() }.toIntOrNull() ?: 0)
+                    },
+                    modifier = Modifier.width(76.dp),
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.titleLarge.copy(
+                        textAlign = TextAlign.Center,
+                        fontWeight = if (item.quantity > 0) FontWeight.Bold else FontWeight.Normal
+                    ),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Number,
+                        imeAction = ImeAction.Done
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onDone = { clearFocus() }
+                    ),
+                    colors = TextFieldDefaults.colors(
+                        focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+                        unfocusedIndicatorColor = if (item.quantity > 0) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.outline.copy(alpha = 0.45f)
+                        },
+                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surface
+                    )
                 )
-            }
-            OutlinedTextField(
-                value = item.quantity.toString(),
-                onValueChange = { raw ->
-                    actions.setQuantity(item.id, raw.filter { it.isDigit() }.toIntOrNull() ?: 0)
-                },
-                modifier = Modifier.width(76.dp),
-                singleLine = true,
-                textStyle = MaterialTheme.typography.titleLarge.copy(textAlign = TextAlign.Center, fontWeight = FontWeight.Bold),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-            )
-            FilledIconButton(
-                onClick = { actions.incrementQuantity(item.id) },
-                modifier = Modifier.size(40.dp)
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_add_24),
-                    contentDescription = "增加数量"
-                )
+                FilledIconButton(
+                    onClick = { actions.incrementQuantity(item.id) },
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_add_24),
+                        contentDescription = "增加数量"
+                    )
+                }
             }
         }
-    }
+    )
 }
 
 @Composable
@@ -1751,7 +1801,7 @@ private fun ItemsManageScreen(state: LiShiUiState, actions: LiShiActions) {
                 .padding(padding)
         ) {
             LazyColumn(
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(vertical = 4.dp)
             ) {
                 itemsIndexed(state.items, key = { _, item -> item.id }) { _, item ->
@@ -1764,19 +1814,6 @@ private fun ItemsManageScreen(state: LiShiUiState, actions: LiShiActions) {
                     HorizontalDivider()
                 }
             }
-            Text(
-                text = if (state.sortMode) {
-                    "点击左侧复选框多选，长按右侧手柄上下拖动调整顺序。"
-                } else {
-                    "点击物品可改名字，也可以用右上角进入排序和批量导入。"
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surface)
-                    .padding(horizontal = 18.dp, vertical = 12.dp),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodySmall
-            )
         }
     }
 }
@@ -1793,26 +1830,26 @@ private fun ItemsTopBar(state: LiShiUiState, actions: LiShiActions) {
                 }
             }
             if (state.items.isNotEmpty()) {
-                IconButton(onClick = { if (state.sortMode) actions.finishSort() else actions.startSort() }) {
-                    Icon(
-                        painter = painterResource(if (state.sortMode) R.drawable.ic_check_24 else R.drawable.ic_sort_24),
-                        contentDescription = if (state.sortMode) "完成" else "排序"
-                    )
-                }
+                ToolbarIconButton(
+                    iconRes = if (state.sortMode) R.drawable.ic_check_24 else R.drawable.ic_sort_24,
+                    label = if (state.sortMode) "完成" else "排序",
+                    contentDescription = if (state.sortMode) "完成" else "排序",
+                    onClick = { if (state.sortMode) actions.finishSort() else actions.startSort() }
+                )
             }
             if (!state.sortMode) {
-                IconButton(onClick = { actions.showDialog(LiShiDialog.BatchImport) }) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_upload_file_24),
-                        contentDescription = "批量导入"
-                    )
-                }
-                IconButton(onClick = { actions.showDialog(LiShiDialog.AddItem) }) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_add_24),
-                        contentDescription = "添加"
-                    )
-                }
+                ToolbarIconButton(
+                    iconRes = R.drawable.ic_upload_file_24,
+                    label = "导入",
+                    contentDescription = "批量导入",
+                    onClick = { actions.showDialog(LiShiDialog.BatchImport) }
+                )
+                ToolbarIconButton(
+                    iconRes = R.drawable.ic_add_24,
+                    label = "添加",
+                    contentDescription = "添加",
+                    onClick = { actions.showDialog(LiShiDialog.AddItem) }
+                )
             }
         }
     )
@@ -1827,13 +1864,13 @@ private fun ItemManageRow(
 ) {
     val haptic = LocalHapticFeedback.current
     val thresholdPx = with(LocalDensity.current) { 52.dp.toPx() }
+    var menuExpanded by remember(item.id) { mutableStateOf(false) }
+
     ListItem(
-        modifier = Modifier.clickable {
-            if (sortMode) {
-                actions.toggleItemSelection(item.id)
-            } else {
-                actions.showDialog(LiShiDialog.RenameItem(item.id))
-            }
+        modifier = if (sortMode) {
+            Modifier.clickable { actions.toggleItemSelection(item.id) }
+        } else {
+            Modifier
         },
         leadingContent = if (sortMode) {
             {
@@ -1885,15 +1922,66 @@ private fun ItemManageRow(
                     )
                 }
             } else {
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    TextButton(onClick = { actions.showDialog(LiShiDialog.RenameItem(item.id)) }) {
-                        Text("修改")
+                Box {
+                    IconButton(onClick = { menuExpanded = true }) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_more_vert_24),
+                            contentDescription = "更多操作"
+                        )
                     }
-                    TextButton(
-                        onClick = { actions.showDialog(LiShiDialog.DeleteItem(item.id)) },
-                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                    DropdownMenu(
+                        expanded = menuExpanded,
+                        onDismissRequest = { menuExpanded = false },
+                        modifier = Modifier.width(196.dp),
+                        shape = RoundedCornerShape(6.dp),
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        tonalElevation = 0.dp,
+                        shadowElevation = 8.dp
                     ) {
-                        Text("删除")
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = "修改",
+                                    style = MaterialTheme.typography.titleMedium
+                                )
+                            },
+                            onClick = {
+                                menuExpanded = false
+                                actions.showDialog(LiShiDialog.RenameItem(item.id))
+                            },
+                            modifier = Modifier.height(64.dp),
+                            leadingIcon = {
+                                Icon(
+                                    painter = painterResource(R.drawable.ic_edit_24),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(28.dp)
+                                )
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = "删除",
+                                    style = MaterialTheme.typography.titleMedium
+                                )
+                            },
+                            onClick = {
+                                menuExpanded = false
+                                actions.showDialog(LiShiDialog.DeleteItem(item.id))
+                            },
+                            modifier = Modifier.height(64.dp),
+                            leadingIcon = {
+                                Icon(
+                                    painter = painterResource(R.drawable.ic_delete_24),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(28.dp)
+                                )
+                            },
+                            colors = androidx.compose.material3.MenuDefaults.itemColors(
+                                textColor = Color(0xFFE5484D),
+                                leadingIconColor = Color(0xFFE5484D)
+                            )
+                        )
                     }
                 }
             }
@@ -2098,6 +2186,15 @@ private fun TextInputDialog(
     onConfirm: (String) -> Unit
 ) {
     var value by remember(title, initialValue) { mutableStateOf(initialValue) }
+    val focusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    LaunchedEffect(title) {
+        kotlinx.coroutines.delay(180)
+        focusRequester.requestFocus()
+        keyboardController?.show()
+    }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
@@ -2113,7 +2210,9 @@ private fun TextInputDialog(
                 OutlinedTextField(
                     value = value,
                     onValueChange = { value = it },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(focusRequester),
                     label = { Text(hint) },
                     singleLine = !multiline,
                     minLines = if (multiline) 5 else 1,
