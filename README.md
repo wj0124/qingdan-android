@@ -4,7 +4,21 @@
 
 ## 应用截图
 
-![登记页](docs/screenshots/register.png)
+<table>
+  <tr>
+    <td align="center"><img src="docs/screenshots/register.jpg" width="220" alt="登记页"><br>登记页</td>
+    <td align="center"><img src="docs/screenshots/summary.jpg" width="220" alt="清单页"><br>清单页</td>
+    <td align="center"><img src="docs/screenshots/items.jpg" width="220" alt="物品管理"><br>物品管理</td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/item-menu.jpg" width="220" alt="物品操作菜单"><br>物品操作菜单</td>
+    <td align="center"><img src="docs/screenshots/shop.jpg" width="220" alt="店铺信息"><br>店铺信息</td>
+    <td align="center"><img src="docs/screenshots/copy-dialog.jpg" width="220" alt="复制清单"><br>复制清单</td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/save-dialog.jpg" width="220" alt="保存成功"><br>保存成功</td>
+  </tr>
+</table>
 
 ## 功能特性
 
